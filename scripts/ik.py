@@ -38,7 +38,8 @@ from intera_core_msgs.srv import (
     SolvePositionIKRequest,
 )
 
-
+def constrain(x, min_x, max_x):
+    return min(max_x, max(x, min_x))
 
 def ik_service_client(limb = "right", use_advanced_options = False):
     limb_mv = intera_interface.Limb('right')
@@ -46,32 +47,38 @@ def ik_service_client(limb = "right", use_advanced_options = False):
     iksvc = rospy.ServiceProxy(ns, SolvePositionIK)
     ikreq = SolvePositionIKRequest()
     hdr = Header(stamp=rospy.Time.now(), frame_id='base')
-    #poses = {'right': PoseStamped(header=hdr,pose=Pose(position=Point(x=0.450628752997,y=0.161615832271,z=0.217447307078,),orientation=Quaternion(x=0.704020578925,y=0.710172716916,z=0.00244101361829,w=0.00194372088834,),),),} neutral pose
 
     # Add desired pose for inverse kinematics
     current_pose = limb_mv.endpoint_pose()
     print current_pose 
-    movement = [0.0,0.2,0.1]
+    movement = [0.0,0.1,0.0]
     orientation = [0.0,0.0,0.0,0.0]
     [dx,dy,dz] = movement
     [ox,oy,oz,ow] = orientation
+    dx = current_pose['position'].x + dx
+    dy = constrain(current_pose['position'].y + dy,-0.7596394482267009,0.7596394482267009)
+    dz = constrain(current_pose['position'].z + dz, 0.1, 1)
+
+     #poses = {'right': PoseStamped(header=hdr,pose=Pose(position=Point(x=0.450628752997,y=0.161615832271,z=0.217447307078,),orientation=Quaternion(x=0.704020578925,y=0.710172716916,z=0.00244101361829,w=0.00194372088834,),),),} neutral pose
     
-    #x= 0.45338495447986793,y = 0.5440510565212842, z= 0.535113472086493,w= 0.4605476120238838 for enpoint facing forward 
+    #x= 0.5,y = 0.5, z= 0.5,w= 0.5 for enpoint facing forward (orientation)
+    #table side parametres x=0.6529605227057904, y= +-0.7596394482267009, z=0.20958623747123714)
+    #table straight parametres x=0.99, y=0.0, z=0.1)
 
     poses = {
         'right': PoseStamped(
             header=hdr,
             pose=Pose(
                 position=Point(
-                    x=current_pose['position'].x + dx,
-                    y=current_pose['position'].y + dy,
-                    z=current_pose['position'].z + dz,
+                    x= dx,
+                    y= dy,
+                    z= dz,
                 ),
                 orientation=Quaternion(
-                    x= 0.5, #current_pose['orientation'].x + ox,
-                    y= 0.5, #current_pose['orientation'].y + oy,
-                    z= 0.5, #current_pose['orientation'].z + oz,
-                    w= 0.5, #current_pose['orientation'].w + ow,
+                    x= current_pose['orientation'].x + ox,
+                    y= current_pose['orientation'].y + oy,
+                    z= current_pose['orientation'].z + oz,
+                    w= current_pose['orientation'].w + ow,
                 ),
             ),
         ),
@@ -99,6 +106,8 @@ def ik_service_client(limb = "right", use_advanced_options = False):
         # Format solution into Limb API-compatible dictionary
         limb_joints = dict(zip(resp.joints[0].name, resp.joints[0].position))
         limb_mv.move_to_joint_positions(limb_joints)
+        current_pose = limb_mv.endpoint_pose()
+        print current_pose 
         rospy.loginfo("\nIK Joint Solution:\n%s", limb_joints)
         rospy.loginfo("------------------")
         rospy.loginfo("Response Message:\n%s", resp)
