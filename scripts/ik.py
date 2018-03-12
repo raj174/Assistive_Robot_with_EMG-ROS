@@ -51,7 +51,7 @@ def ik_service_client(limb = "right", use_advanced_options = False):
     # Add desired pose for inverse kinematics
     current_pose = limb_mv.endpoint_pose()
     print current_pose 
-    movement = [0.0,0.0,0.0]
+    movement = [0.0,0.2,0.1]
     orientation = [0.0,0.0,0.0,0.0]
     [dx,dy,dz] = movement
     [ox,oy,oz,ow] = orientation
@@ -68,10 +68,10 @@ def ik_service_client(limb = "right", use_advanced_options = False):
                     z=current_pose['position'].z + dz,
                 ),
                 orientation=Quaternion(
-                    x= 0.45338495447986793, #current_pose['orientation'].x + ox,
-                    y= 0.5440510565212842, #current_pose['orientation'].y + oy,
-                    z= 0.535113472086493, #current_pose['orientation'].z + oz,
-                    w= 0.4605476120238838, #current_pose['orientation'].w + ow,
+                    x= 0.5, #current_pose['orientation'].x + ox,
+                    y= 0.5, #current_pose['orientation'].y + oy,
+                    z= 0.5, #current_pose['orientation'].z + oz,
+                    w= 0.5, #current_pose['orientation'].w + ow,
                 ),
             ),
         ),
