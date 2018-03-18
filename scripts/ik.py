@@ -51,8 +51,8 @@ def ik_service_client(limb = "right", use_advanced_options = False):
     # Add desired pose for inverse kinematics
     current_pose = limb_mv.endpoint_pose()
     print current_pose 
-    movement = [0.0,0.1,0.0]
-    orientation = [0.0,0.0,0.0,0.0]
+    movement = [-0.1,0.0,0.0]
+    orientation = [0.5,0.5,0.5,0.5]
     [dx,dy,dz] = movement
     [ox,oy,oz,ow] = orientation
     dx = current_pose['position'].x + dx
@@ -75,17 +75,19 @@ def ik_service_client(limb = "right", use_advanced_options = False):
                     z= dz,
                 ),
                 orientation=Quaternion(
-                    x= current_pose['orientation'].x + ox,
-                    y= current_pose['orientation'].y + oy,
-                    z= current_pose['orientation'].z + oz,
-                    w= current_pose['orientation'].w + ow,
+                    x= 0.5, #current_pose['orientation'].x + ox,
+                    y= 0.5, #current_pose['orientation'].y + oy,
+                    z= 0.5, #current_pose['orientation'].z + oz,
+                    w= 0.5, #current_pose['orientation'].w + ow,
                 ),
             ),
         ),
     }
+
     ikreq.pose_stamp.append(poses[limb])
+    
     # Request inverse kinematics from base to "right_hand" link
-    ikreq.tip_names.append('right_hand')
+    ikreq.tip_names.append('right_hand') # right_hand, right_wrist, right_hand_camera 
 
     try:
         rospy.wait_for_service(ns, 5.0)
