@@ -49,13 +49,15 @@ def ik_service_client(limb = "right", use_advanced_options = False):
     hdr = Header(stamp=rospy.Time.now(), frame_id='base')
 
     # Add desired pose for inverse kinematics
-    #print (limb_mv.tip_state("right_hand_camera")) #current right_hand_camera pose
-    movement = [0.5,0.3,0.3] 
+    camera_pose = limb_mv.tip_state("right_hand_camera") #current right_hand_camera pose
+    print camera_pose
+    movement = [0.2,-0.4,0.35] 
+    [dx,dy,dz] = movement
     dy = constrain(dy,-0.7596394482267009,0.7596394482267009)
     dz = constrain(dz, 0.1, 1)
   
-    #x= 0.7,y = 0.7, z= 0.0,w= 0.0 for camera facing down (orientation)
-    
+    #x= 0.7,y = 0.7, z= 0.0,w= 0.0 for camera facing down (orientation, facing forward)
+    #x= 0.0,y = 1, z= 0.0,w= 0.0 for camera facing down (orientation, facing side)
     poses = {
         'right': PoseStamped(
             header=hdr,
@@ -66,8 +68,8 @@ def ik_service_client(limb = "right", use_advanced_options = False):
                     z= dz,
                 ),
                 orientation=Quaternion(
-                    x= 0.7,
-                    y= -0.7,
+                    x= 0.0,
+                    y= 1,
                     z= 0.0,
                     w= 0.0,
                 ),
@@ -98,7 +100,10 @@ def ik_service_client(limb = "right", use_advanced_options = False):
 
         # Format solution into Limb API-compatible dictionary
         limb_joints = dict(zip(resp.joints[0].name, resp.joints[0].position))
+        
+        #move to position
         limb_mv.move_to_joint_positions(limb_joints)
+        
         rospy.loginfo("\nIK Joint Solution:\n%s", limb_joints)
         rospy.loginfo("------------------")
         rospy.loginfo("Response Message:\n%s", resp)

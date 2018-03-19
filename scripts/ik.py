@@ -49,9 +49,9 @@ def ik_service_client(limb = "right", use_advanced_options = False):
     hdr = Header(stamp=rospy.Time.now(), frame_id='base')
 
     # Add desired pose for inverse kinematics
-    current_pose = limb_mv.endpoint_pose(right_hand_camera)
+    current_pose = limb_mv.endpoint_pose()
     print current_pose 
-    movement = [-0.1,0.0,0.0]
+    movement = [0.1,0.0,0.0]
     orientation = [0.5,0.5,0.5,0.5]
     [dx,dy,dz] = movement
     [ox,oy,oz,ow] = orientation

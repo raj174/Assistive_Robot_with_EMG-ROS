@@ -63,26 +63,26 @@ class Wobbler(object):
 
     def run(self):
         self.set_neutral()
-        """
-        Performs the wobbling
-        """
-        command_rate = rospy.Rate(1)
-        control_rate = rospy.Rate(100)
-        start = rospy.get_time()
-        while not rospy.is_shutdown() and (rospy.get_time() - start < 10.0):
-            angle = self.__constrain(-1.9, -2.0, 0.95)
-            self._head.set_pan(angle, speed=0.3, timeout=0)
+        # """
+        # Performs the wobbling
+        # """
+        # command_rate = rospy.Rate(1)
+        # control_rate = rospy.Rate(100)
+        # start = rospy.get_time()
+        # while not rospy.is_shutdown() and (rospy.get_time() - start < 10.0):
+        #     angle = self.__constrain(-1.9, -2.0, 0.95)
+        #     self._head.set_pan(angle, speed=0.3, timeout=0)
 
-            print ("position 1")
-            time.sleep(10);
+        #     print ("position 1")
+        #     time.sleep(10);
 
-            angle = self.__constrain(0.9, -2.0, 0.95)
-            self._head.set_pan(angle, speed=0.3, timeout=0)
+        #     angle = self.__constrain(0.9, -2.0, 0.95)
+        #     self._head.set_pan(angle, speed=0.3, timeout=0)
 
-            print ("position 2")
-            time.sleep(10);
+        #     print ("position 2")
+        #     time.sleep(10);
 
-            command_rate.sleep()
+        #     command_rate.sleep()
 
         self._done = True
         rospy.signal_shutdown("Example finished.")
@@ -105,7 +105,7 @@ def main():
 if __name__ == '__main__':
     main()
 
-    print (dir(intera_interface))
+    #print (dir(intera_interface))
 
 
 
