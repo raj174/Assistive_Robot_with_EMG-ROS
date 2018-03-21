@@ -18,7 +18,7 @@ question2 = "would you like to continue the loop?"
 while True:
     if raw_input(question2) == "n":
         break
-    angles['right_j1'] = eval(raw_input(question))
+    angles['right_j6'] = eval(raw_input(question))
     print(angles)
     limb.move_to_joint_positions(angles)
     current_pose = limb.endpoint_pose() 

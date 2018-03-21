@@ -51,7 +51,12 @@ def ik_service_client(limb = "right", use_advanced_options = False):
     # Add desired pose for inverse kinematics
     camera_pose = limb_mv.tip_state("right_hand_camera") #current right_hand_camera pose
     print camera_pose
-    movement = [0.2,-0.4,0.35] 
+
+    # first position [0.45,-0.45,0.30]
+    # second position [0.45,-0.55,0.30]
+    # third position [0.362,-0.45,0.30]
+    # fourth position [0.362,-0.55,0.30] 
+    movement = [0.45,-0.45,0.60] 
     [dx,dy,dz] = movement
     dy = constrain(dy,-0.7596394482267009,0.7596394482267009)
     dz = constrain(dz, 0.1, 1)
