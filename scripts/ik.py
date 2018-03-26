@@ -52,7 +52,7 @@ def ik_service_client(limb = "right", tip_name = "right_gripper_tip"):
     # Add desired pose for inverse kinematics
     current_pose = limb_mv.endpoint_pose()
     #print current_pose 
-    movement = [0.45,-0.453,0.51]
+    movement = [0.45,-0.453,0.61]
     orientation = [0.0,1,0.0,0.0]
     #gripper.close()
     rospy.sleep(1.0)
