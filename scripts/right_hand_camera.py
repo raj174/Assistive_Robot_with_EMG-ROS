@@ -99,6 +99,7 @@ def main():
         return
     rospy.loginfo("Opening camera '{0}'...".format(camera_name))
     cameras.start_streaming(camera_name)
+    cameras.set_cognex_strobe(False)
     cameras.set_callback(camera_name, show_image_callback, rectify_image=False, callback_args=None)
 
     def clean_shutdown():

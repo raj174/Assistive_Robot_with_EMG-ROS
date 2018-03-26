@@ -82,7 +82,7 @@ def approach(pose):
         r.sleep()
     rospy.sleep(1.0)"""
 
-def ik_service_client(limb = "right", tip_name = "right_hand", steps = 400.0):
+def ik_service_client(limb = "right", tip_name = "right_hand", steps = 100.0):
     limb_mv = intera_interface.Limb(limb)
     gripper = intera_interface.Gripper()
     ns = "ExternalTools/" + limb + "/PositionKinematicsNode/IKService"
@@ -93,11 +93,11 @@ def ik_service_client(limb = "right", tip_name = "right_hand", steps = 400.0):
     # Add desired pose for inverse kinematics
     current_pose = limb_mv.endpoint_pose()
     #print current_pose 
-    movement = [0.45,-0.453,-0.21]
+    movement = [0.45,-0.453,0.60] # height 0.24 to pickup location with tip right_hand
     overhead_orientation = Quaternion(x=-0.00142460053167,y=0.999994209902,z=-0.00177030764765,w=0.00253311793936)
     #orientation = [0.0,1,0.0,0.0]
     #gripper.close()
-    rospy.sleep(1.0)
+    #rospy.sleep(1.0)
     [dx,dy,dz] = movement
     #[ox,oy,oz,ow] = orientation
     dy = constrain(dy,-0.7596394482267009,0.7596394482267009)
@@ -144,7 +144,7 @@ def ik_service_client(limb = "right", tip_name = "right_hand", steps = 400.0):
     except (rospy.ServiceException, rospy.ROSException), e:
         rospy.logerr("Service call failed: %s" % (e,))
         return False
-    limb_mv.set_joint_position_speed(0.05)
+    limb_mv.set_joint_position_speed(0.1)
     ik_delta = Pose()
     ik_delta.position.x = (current_pose['position'].x - pose.position.x) / steps
     print ik_delta.position.x
@@ -168,7 +168,7 @@ def ik_service_client(limb = "right", tip_name = "right_hand", steps = 400.0):
         ik_step.orientation.w = d*ik_delta.orientation.w + pose.orientation.w
         joint_angles = limb_mv.ik_request(ik_step, tip_name)
         if joint_angles:
-            limb_mv.set_joint_positions(joint_angles)
+            limb_mv.move_to_joint_positions(joint_angles)
         else:
             rospy.logerr("No Joint Angles provided for move_to_joint_positions. Staying put.")
 
