@@ -41,6 +41,21 @@ from intera_core_msgs.srv import (
 def constrain(x, min_x, max_x):
     return min(max_x, max(x, min_x))
 
+def approach():
+    limb_mv = intera_interface.Limb("right")
+    overhead_orientation = Quaternion(
+                             x=-0.00142460053167,
+                             y=0.999994209902,
+                             z=-0.00177030764765,
+                             w=0.00253311793936)
+    approach = Pose(position=Point(x=0.45, y=-0.453, z=0.240),orientation=overhead_orientation)
+    print (approach)
+    # approach with a pose the hover-distance above the requested pose
+    approach.position.z = approach.position.z + 0.3
+    joint_angles = limb_mv.ik_request(approach, "right_hand")
+    limb_mv.set_joint_position_speed(0.1)
+    limb_mv.move_to_joint_positions(joint_angles)
+
 def ik_service_client(limb = "right", tip_name = "right_gripper_tip"):
     limb_mv = intera_interface.Limb(limb)
     #gripper = intera_interface.Gripper()
@@ -143,7 +158,7 @@ def main():
     """
     rospy.init_node("rsdk_ik_service_client")
 
-    if ik_service_client():
+    if approach():
         rospy.loginfo("Simple IK call passed!")
     else:
         rospy.logerr("Simple IK call FAILED")
