@@ -51,17 +51,10 @@ def show_image_callback(img_data):
  
     #print(parameters)
  
-    '''    detectMarkers(...)
-        detectMarkers(image, dictionary[, corners[, ids[, parameters[, rejectedI
-        mgPoints]]]]) -> corners, ids, rejectedImgPoints
-        '''
-        #lists of ids and the corners beloning to each id
+    #lists of ids and the corners beloning to each id
     corners, ids, rejectedImgPoints = aruco.detectMarkers(cv_image, aruco_dict, parameters=parameters)
     print(ids)
  
-    #It's working.
-    # my problem was that the cellphone put black all around it. The alrogithm
-    # depends very much upon finding rectangular black blobs
  
     cv_image = aruco.drawDetectedMarkers(cv_image, corners)
     new_size = cv_image.shape

@@ -5,11 +5,7 @@ import rospy
 import intera_interface
 import tf
 import struct
-import numpy as np
-
-import argparse
 import copy
-import rospkg
 
 import cv2
 import cv2.aruco as aruco
@@ -22,7 +18,6 @@ from geometry_msgs.msg import (
 	Quaternion,
 )
 
-from std_msgs.msg import Header
 from sensor_msgs.msg import (JointState, Image)
 
 from intera_core_msgs.srv import (
@@ -35,9 +30,13 @@ class PickAndPlace(object):
 		self._limb_name = limb # string
 		self._tip_name = tip_name # string
 		self._hover_distance = hover_distance # in meters
+		self._camera_name = camera_name
 		self._limb = intera_interface.Limb(limb)
 		self._gripper = intera_interface.Gripper()
 		self._rp = intera_interface.RobotParams()
+		self._light = intera_interface.Lights()
+		self._cameras = intera_interface.Cameras()
+
 
 		# verify robot is enabled
 		print("Getting robot state... ")
@@ -55,6 +54,7 @@ class PickAndPlace(object):
 		self.gripper_open()
 
 	def move_to_home(self):
+		self._limb.set_joint_position_speed(0.2)
 		home_position = {'right_j6': 0.0, 'right_j5': 0.0, 'right_j4': 0.0, 'right_j3': 0.0, 'right_j2': 0.0, 'right_j1': -1.6, 'right_j0': 0.0}
 		self._guarded_move_to_joint_position(home_position)
 		self.gripper_open()
@@ -71,7 +71,7 @@ class PickAndPlace(object):
 			return
 		if joint_angles:
 			self._limb.move_to_joint_positions(joint_angles,timeout=timeout)
-			print (self._limb.endpoint_pose())
+			#print (self._limb.endpoint_pose())
 		else:
 			rospy.logerr("No Joint Angles provided for move_to_joint_positions. Staying put.")
 
@@ -85,7 +85,7 @@ class PickAndPlace(object):
 
 	def _approach(self, pose):
 		approach = copy.deepcopy(pose)
-		print (approach)
+		#print (approach)
 		# approach with a pose the hover-distance above the requested pose
 		approach.position.z = approach.position.z + self._hover_distance
 		joint_angles = self._limb.ik_request(approach, self._tip_name)
@@ -169,40 +169,122 @@ class PickAndPlace(object):
 
 
 
+class check_object_position(object):
+	def __init__(self, limb="right", hover_distance = 0.40, tip_name="right_hand_camera", camera_name = "right_hand_camera"):
+		self._limb_name = limb # string
+		self._tip_name = tip_name # string
+		self._hover_distance = hover_distance # in meters
+		self._camera_name = camera_name
+
+		self._limb = intera_interface.Limb(limb)
+		self._gripper = intera_interface.Gripper()
+		self._rp = intera_interface.RobotParams()
+		self._light = intera_interface.Lights()
+		self._cameras = intera_interface.Cameras()
+
+	def move(self,pose):
+		move = copy.deepcopy(pose)
+
+	def _hover_position(self, pose):
+		approach = copy.deepcopy(pose)
+		approach.position.z = approach.position.z + self._hover_distance
+		joint_angles = self._limb.ik_request(approach, self._tip_name)
+		self._limb.set_joint_position_speed(0.2)
+		self._guarded_move_to_joint_position(joint_angles)
+
+	def _movedown(self,pose):
+		movedown = copy.deepcopy(pose)
+		joint_angles = self._limb.ik_request(movedown, self._tip_name)
+		self._limb.set_joint_position_speed(0.1)
+		self._guarded_move_to_joint_position(joint_angles)
+
+	def _guarded_move_to_joint_position(self, joint_angles, timeout=5.0):
+		if rospy.is_shutdown():
+			return
+		if joint_angles:
+			self._limb.move_to_joint_positions(joint_angles,timeout=timeout)
+			#print (self._limb.endpoint_pose())
+		else:
+			rospy.logerr("No Joint Angles provided for move_to_joint_positions. Staying put.")
+
+	def check_pick_up_object(self,product):
+
+
+
+	def check_object(self, pose, find = None, hover_position = True):
+		if rospy.is_shutdown():
+			return
+
+		if find == None :
+			rospy.logerr("Object to find is not provided.")
+		else:
+			if hover_position == True:
+				self._hover_position(pose)
+			self._movedown(pose)
+			if check_pick_up_object(find):
+				self._hover_position(pose)
+				return True
+			return False
+
+
+
+	#need to confirm
+
 	def camera_check(self):
-	    use_canny_edge = 1
-	    rp = intera_interface.RobotParams()
-	    valid_cameras = rp.get_camera_names()
+	    valid_cameras = self._rp.get_camera_names()
 	    if not valid_cameras:
 	        self._rp.log_message(("Cannot detect any camera_config"
 	            " parameters on this robot. Exiting."), "ERROR")
 	        return
 
-	    cameras = intera_interface.Cameras()
-	    if not cameras.verify_camera_exists(camera_name):
-	        rospy.logerr("Could not detect the specified camera, exiting the example.")
+	    if not self._cameras.verify_camera_exists(camera_name):
+	        rospy.logerr("Could not detect the specified camera, exiting.")
 	        return
 	    rospy.loginfo("Opening camera '{0}'...".format(camera_name))
 	    cameras.start_streaming(camera_name)
-	    cameras.set_cognex_strobe(False)
-	    cameras.set_callback(camera_name, show_image_callback, rectify_image=False, callback_args=None)
+	    #cameras.set_cognex_strobe(False)
+	    cameras.set_callback(camera_name, self.show_image_callback, rectify_image=False, callback_args=None)
 
-	    def clean_shutdown():
-	        print("Shutting down camera_display node.")
-	        cv2.destroyAllWindows()
+	def show_image_callback(self,img_data):
+	    """The callback function to show image by using CvBridge and cv
+	    """
+	    bridge = CvBridge()
+	    aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
+	    parameters =  aruco.DetectorParameters_create()
 
-	    rospy.on_shutdown(clean_shutdown)
-	    rospy.loginfo("Camera_display node running. Ctrl-c to quit")
+	    try:
+	        cv_image = bridge.imgmsg_to_cv2(img_data, "bgr8")
+	    except CvBridgeError, err:
+	        rospy.logerr(err)
+	        return
+
+	    #lists of ids and the corners beloning to each id
+	    corners, ids, rejectedImgPoints = aruco.detectMarkers(cv_image, aruco_dict, parameters=parameters)
+	    #print(ids)
+	 
+	    cv_image = aruco.drawDetectedMarkers(cv_image, corners)
+	    new_size = cv_image.shape
+	    new_size = new_size[1]*3, new_size[0]*3
+	    img = cv2.resize(cv_image, new_size)
+	    #print img.shape
+	    #print(rejectedImgPoints)
+	    # Display the resulting frame
+	    cv2.imshow('frame', img)
+	    cv2.waitKey(3)
+
 
 def main():
 	rospy.init_node("pick_and_place", anonymous = True)
 	limb = 'right'
 	hover_distance = 0.3 # meters
-	#load_gazebo_models()
-	#rospy.on_shutdown(delete_gazebo_models)
+	tip_name = 'right_hand'
+	tip_name_camera = 'right_hand_camera'
+	camera_name = 'right_hand_camera'
+	products = ["ketchup","mayonaise","barbeque","salad creme"]
+	product = products[1]
+	cop = check_object_position(limb,hover_distance,tip_name_camera,camera_name)
+	pnp = PickAndPlace(limb, hover_distance,tip_name,camera_name)
 
-	# Starting Joint angles for right arm
-	pnp = PickAndPlace(limb, hover_distance)
 	
 	# An orientation for gripper fingers to be overhead and parallel to the obj
 	overhead_orientation = Quaternion(
@@ -210,6 +292,11 @@ def main():
 							 y=0.999994209902,
 							 z=-0.00177030764765,
 							 w=0.00253311793936)
+	overhead_orientation_camera = Quaternion(
+									x = 0.0,
+									y = 1.0,
+									z = 0.0,
+									w = 0.0)
 	
 	block_poses = list()
 	block_poses.append(Pose(
@@ -220,19 +307,35 @@ def main():
 	block_poses.append(Pose(
 		position=Point(x=0.60, y=0.0, z=0.225),
 		orientation=overhead_orientation))
+	camera_pose = []
+	camera_pose,append(Pose(
+		position=Point(x=0.45, y=-0.453, z=0.3),
+		orientation=overhead_orientation_camera))
+	camera_pose.append(Pose(
+		position=Point(x=0.45, y=-0.553, z=0.3),
+		orientation=overhead_orientation_camera))
+	camera_pose,append(Pose(
+		position=Point(x=0.362, y=-0.453, z=0.3),
+		orientation=overhead_orientation_camera))
+	camera_pose.append(Pose(
+		position=Point(x=0.362, y=-0.453, z=0.3),
+		orientation=overhead_orientation_camera))
+
 	print (block_poses)
 	print("Running. Ctrl-c to quit")
 	pnp.move_to_neutral()
-	#rospy.sleep(1.0)
+	rospy.sleep(1.0)
 	#pnp.move_to_home()
 	#pnp.move_to_start(starting_joint_angles)
 	idx = 0
-	while not rospy.is_shutdown():
-	    print("\nPicking...")
-	    pnp.pick(block_poses[idx])
-	    print("\nPlacing...")
-	    idx = (idx+1) % len(block_poses)
-	    pnp.place(block_poses[idx])
+	while not cop.check_object(camera_pose[1],product): #choose wanted position
+		idx = (idx+1) % len(camera_pose)
+		cop.check_object(camera_pose[idx],product, hover_position = False)
+	print("\nPicking...")
+	pnp.pick(block_poses[0])
+	print("\nPlacing...")
+	#idx = (idx+1) % len(block_poses)
+	pnp.place(block_poses[1])
 	return 0
 
 if __name__ == '__main__':
