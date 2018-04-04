@@ -28,7 +28,7 @@ from intera_core_msgs.srv import (
 )
 
 class KitchenObject(object):
-	def __init__(self, name='ketchup', product_id=0, x=0.1, y=0.1, z=0.7, hover_offset=0.4):
+	def __init__(self, name='ketchup', product_id=0, x=0.3, y=0.3, z=0.7, hover_offset=0.4):
 		self.name = name
 		self.orientation = Quaternion(x = 0.0, y = 1.0, z = 0.0, w = 0.0)
 		self.position = None
@@ -67,7 +67,7 @@ class KitchenObject(object):
 		rospy.loginfo("hover_pose: {hover_pose}\npose: {pose}".format(hover_pose=self.hover_pose, pose=self.pose))
 
 
-class check_object_position(object):
+class CheckObjectPosition(object):
 	def __init__(self, limb="right", hover_distance = 0.40, tip_name="right_hand_camera", camera_name = "right_hand_camera"):
 		self._limb_name = limb # string
 		self._tip_name = tip_name # string
@@ -91,6 +91,8 @@ class check_object_position(object):
 		self.kitchen_objects['barbeque']  = KitchenObject('barbeque' , 2, 0.362, -0.453, 0.3)
 		self.kitchen_objects['salad']     = KitchenObject('salad'    , 3, 0.362, -0.553, 0.3)
 
+		self.check_positions = [(0.450, -0.453),(0.450, -0.553),(0.362, -0.453),(0.362, -0.553)]
+
 
 
 		## TODO #1: RAJ: Look into the section below
@@ -99,13 +101,6 @@ class check_object_position(object):
 			'obj_id': None,
 			'obj_pose': None
 		}
-		## RAJ: Look END
-
-		print("Getting robot state... ")
-		self._rs = intera_interface.RobotEnable(intera_interface.CHECK_VERSION)
-		self._init_state = self._rs.state().enabled
-		print("Enabling robot... ")
-		self._rs.enable()
 
 	def constrain(self, x, min_x, max_x):
 		return min(max_x, max(x, min_x))
@@ -143,6 +138,21 @@ class check_object_position(object):
 		else:
 			rospy.logerr("No Joint Angles provided for move_to_joint_positions. Staying put.")
 
+	def update_product_positions(self):
+		current_id = None
+		for i in range(0,len(self.kitchen_objects)):
+			move_pose = Pose(position= Point(x = self.check_positions[i][0], y= self.check_positions[i][1], z = 0.3), orientation=self._camera_orientation)
+			self.move_to_pose(move_pose)
+			rospy.sleep(2.0)
+			currrent_id = self.detected_object_data['obj_id']
+			print self.detected_object_data['obj_id']
+			for j in self.kitchen_objects:
+				if self.kitchen_objects[j].product_id == currrent_id:
+					self.kitchen_objects[j].set_pose(self.check_positions[i][0],self.check_positions[i][1],0.3)
+					current_id = None
+				elif current_id == type(None):
+					rospy.loginfo("Nothing found at position x: {x} y: {y}".format(x = self.check_positions[i][0],y = self.check_positions[i][1]))
+
 	def get_product_pose(self, product_name=''):
 		if not product_name in self.kitchen_objects.keys():
 			return None
@@ -159,6 +169,7 @@ class check_object_position(object):
 	def check_object(self, product_name='', hover_position=True, timeout=10):
 		if rospy.is_shutdown(): 
 			return
+
 		product = self.get_product(product_name)
 		if not product:
 			rospy.logerr("Could not find object with name {name}.".format(name=product_name))
@@ -170,7 +181,8 @@ class check_object_position(object):
 
 		self.check_object_with_camera()
 		## wait for camera to initialize
-		rospy.sleep(1)
+		rospy.sleep(1.0)
+		#print len(self.kitchen_objects)-1
 
 		start_time = time.time()
 		while True:
@@ -181,12 +193,14 @@ class check_object_position(object):
 			if rospy.is_shutdown():
 				break
 		if type(self.detected_object_data['obj_id']) == type(None):
-			rospy.logerr("Did not detect {product} at position.".format(product=product_name))
+			rospy.logerr("Did not detect any product at position.".format(product=product_name))
 			return False
 		elif self.detected_object_data['obj_id'] == product.product_id:
 			rospy.loginfo("Detctected {product} at position. Product ID {id}".format(product = product_name, id=product.product_id))
 			self.move_to_pose(product.get_hover_pose())
-			return True
+			return product.get_pose()
+		elif self.detected_object_data['obj_id'] >= 0 and self.detected_object_data['obj_id'] <= (len(self.kitchen_objects)-1):
+			self.update_product_positions()
 		return False
 
 	def check_object_with_camera(self):
@@ -216,32 +230,47 @@ class check_object_position(object):
 	    #lists of ids and the corners beloning to each id
 	    corners, ids, rejectedImgPoints = aruco.detectMarkers(cv_image, aruco_dict, parameters=parameters)
 	    # print(ids)
-
 	    ## TODO #2: RAJ look into the section below
 	    ## updating detected object data
-	    if (type(ids) == type(None)) or (type(ids[0]) == type(None)):
-	    	return
-
+	    
 	    self.detected_object_data['frame'] = None
-	    self.detected_object_data['obj_id'] = ids[0][0]
-	    self.detected_object_data['obj_pose'] = None	 
+	    self.detected_object_data['obj_pose'] = None
+
+	    if (type(ids) == type(None)) or (type(ids[0]) == type(None)):
+	    	self.detected_object_data['obj_id'] = None
+	    else:
+	    	self.detected_object_data['obj_id'] = ids[0][0]
 
 def main():
 	rospy.init_node("Check_object_position", anonymous = True)
 	limb = 'right'
 	hover_distance = 0.3 # meters
 	tip_name = 'right_hand_camera'
-	product = ["ketchup","mayonaise","barbeque","salad"]
+	product_name = ["ketchup","mayonaise","barbeque","salad"]
 	cop = check_object_position(limb,hover_distance)	
-	#cop.move_to_home()
+	cop.move_to_home()
 	rospy.sleep(1.0)
 	#pnp.move_to_start(starting_joint_angles)
 	#idx = 0
-	cop.check_object(product[0])
-	# if not cop.check_object(product[1]): #choose wanted position
-	# 	# idx = (idx+1) % len(camera_pose)
-	# 	# cop.check_object(camera_pose[idx],product, hover_position = False)
-	# 	pass
+	while True:
+		if rospy.is_shutdown():
+			break
+		question = "What do you want to pick? "
+		chosen_position = int(raw_input(question))
+		if chosen_position <= len(product_name):
+			product_to_pick = product_name[chosen_position]
+		else:
+			break
+		product_pose = cop.check_object(product_to_pick)
+		if not product_pose:
+			product_pose_repeat = cop.check_object(product_to_pick,False)
+			if not product_pose_repeat:
+				pass
+			
+			# if not cop.check_object(product[1]): #choose wanted position
+			# # idx = (idx+1) % len(camera_pose)
+			# # cop.check_object(camera_pose[idx],product, hover_position = False)
+			# pass
 
 
 

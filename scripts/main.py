@@ -17,6 +17,7 @@ from geometry_msgs.msg import (
 	Point,
 	Quaternion,
 )
+from check_object_position import CheckObjectPosition
 
 from sensor_msgs.msg import (JointState, Image)
 from std_msgs.msg import String
@@ -26,17 +27,42 @@ from intera_core_msgs.srv import (
 	SolvePositionIKRequest,
 )
 
+class DropLocation(object):
+	def __init__(self, name='drop1', x=0.3, y=0.3, z=0.7, hover_offset=0.4):
+		self.name = name
+		self.orientation = Quaternion(x=-0.00142460053167,y=0.999994209902,	z=-0.00177030764765,w=0.00253311793936)
+		self.position = None
+		self.pose = None
+		self.hover_pose = None
+		self.hover_position = None
+		self.hover_offset = hover_offset
+
+		self.set_pose(x,y,z)
+
+	def set_pose(self, x, y, z):
+		self.position = Point(x=x, y=y, z=z)
+		self.pose = Pose(position=self.position, orientation=self.orientation)
+
+		self.hover_position = copy.deepcopy(self.position)
+		self.hover_position.z = self.position.z + self.hover_offset
+		self.hover_pose = Pose(position=self.hover_position, orientation=self.orientation)
+
 class PickAndPlace(object):
-	def __init__(self, limb="right", hover_distance = 0.30, tip_name="right_hand", camera_name = "right_hand_camera"):
+	def __init__(self, limb="right", hover_distance = 0.30, tip_name="right_hand"):
 		self._limb_name = limb # string
 		self._tip_name = tip_name # string
 		self._hover_distance = hover_distance # in meters
-		self._camera_name = camera_name
 		self._limb = intera_interface.Limb(limb)
 		self._gripper = intera_interface.Gripper()
 		self._rp = intera_interface.RobotParams()
-		self._light = intera_interface.Lights()
-		self._cameras = intera_interface.Cameras()
+		self.overhead_orientation = Quaternion(x=-0.00142460053167,y=0.999994209902,z=-0.00177030764765,w=0.00253311793936)
+
+		self.drop_locations = {}
+
+		self.drop_locations['drop1']   	= DropLocation('drop1', 0.60, 0.0, 0.225)
+		self.drop_locations['drop2'] 	= DropLocation('drop2', 0.60, 0.0, 0.225)
+		self.drop_locations['drop3']  	= DropLocation('drop3', 0.60, 0.0, 0.225)
+		self.drop_locations['drop4']   	= DropLocation('drop4', 0.60, 0.0, 0.225)
 
 
 		# verify robot is enabled
@@ -77,10 +103,14 @@ class PickAndPlace(object):
 		self._gripper.close()
 		rospy.sleep(1.0)
 
+	def get_overhead_orientation(self,pose):
+		current_pose = copy.deepcopy(pose)
+		current_pose.position.z = 0.245
+		current_pose.orientation = self.overhead_orientation
+		return current_pose
+
 	def _approach(self, pose):
 		approach = copy.deepcopy(pose)
-		#print (approach)
-		# approach with a pose the hover-distance above the requested pose
 		approach.position.z = approach.position.z + self._hover_distance
 		joint_angles = self._limb.ik_request(approach, self._tip_name)
 		self._limb.set_joint_position_speed(0.3)
@@ -132,6 +162,7 @@ class PickAndPlace(object):
 		rospy.sleep(1.0)
 
 	def pick(self, pose):
+		pose = self.get_overhead_orientation(pose)
 		if rospy.is_shutdown():
 			return
 		# open the gripper
@@ -147,13 +178,13 @@ class PickAndPlace(object):
 		# retract to clear object
 		self._retract()
 
-	def place(self, pose):
+	def place(self, drop_location):
 		if rospy.is_shutdown():
 			return
 		# servo above pose
-		self._approach(pose)
+		self._approach(self.drop_locations[drop_location].pose)
 		# servo to pose
-		self._servo_to_pose(pose)
+		self._servo_to_pose(self.drop_locations[drop_location].pose)
 		if rospy.is_shutdown():
 			return
 		# open the gripper
@@ -162,54 +193,35 @@ class PickAndPlace(object):
 		self._retract()
 
 
-
-
-
 def main():
 	rospy.init_node("pick_and_place", anonymous = True)
 	limb = 'right'
 	hover_distance = 0.3 # meters
 	tip_name = 'right_hand'
-	
-	product = products[1]
-	cop = check_object_position(limb,hover_distance,tip_name_camera,camera_name)
-	pnp = PickAndPlace(limb, hover_distance,tip_name,camera_name)
-
-	
-	# An orientation for gripper fingers to be overhead and parallel to the obj
-	overhead_orientation = Quaternion(
-							 x=-0.00142460053167,
-							 y=0.999994209902,
-							 z=-0.00177030764765,
-							 w=0.00253311793936)
-	block_poses = list()
-	block_poses.append(Pose(
-		position=Point(x=0.45, y=-0.453, z=0.245),
-		orientation=overhead_orientation))
-	# Feel free to add additional desired poses for the object.
-	# Each additional pose will get its own pick and place.
-	block_poses.append(Pose(
-		position=Point(x=0.60, y=0.0, z=0.225),
-		orientation=overhead_orientation))
-	
-
-	print (block_poses)
-	print("Running. Ctrl-c to quit")
-	#pnp.move_to_neutral()
+	product_name = ["ketchup","mayonaise","barbeque","salad"]
+	pnp = PickAndPlace(limb, hover_distance,tip_name)
+	cop = CheckObjectPosition(limb,hover_distance)	
+	cop.move_to_home()
 	rospy.sleep(1.0)
-	#pnp.move_to_home()
-	#pnp.move_to_start(starting_joint_angles)
-	idx = 0
-	while not cop.check_object(camera_pose[1],product): #choose wanted position
-		idx = (idx+1) % len(camera_pose)
-		cop.check_object(camera_pose[idx],product, hover_position = False)
-
-	print("\nPicking...")
-	pnp.pick(block_poses[0])
-	print("\nPlacing...")
-	#idx = (idx+1) % len(block_poses)
-	pnp.place(block_poses[1])
-	return 0
+	while True:
+		if rospy.is_shutdown():
+			break
+		question = "What do you want to pick? "
+		chosen_position = int(raw_input(question))
+		if chosen_position <= len(product_name):
+			product_to_pick = product_name[chosen_position]
+		else:
+			break
+		product_pose = cop.check_object(product_to_pick)
+		if not product_pose:
+			product_pose = cop.check_object(product_to_pick,False)
+		print("Running. Ctrl-c to quit")
+		#pnp.move_to_neutral()
+		rospy.sleep(1.0)
+		print("\nPicking...")
+		pnp.pick(product_pose)
+		print("\nPlacing...")
+		pnp.place("drop1")
 
 if __name__ == '__main__':
 	main()
