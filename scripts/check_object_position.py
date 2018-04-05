@@ -145,7 +145,7 @@ class CheckObjectPosition(object):
 			self.move_to_pose(move_pose)
 			rospy.sleep(2.0)
 			currrent_id = self.detected_object_data['obj_id']
-			print self.detected_object_data['obj_id']
+			#print self.detected_object_data['obj_id']
 			for j in self.kitchen_objects:
 				if self.kitchen_objects[j].product_id == currrent_id:
 					self.kitchen_objects[j].set_pose(self.check_positions[i][0],self.check_positions[i][1],0.3)
@@ -166,7 +166,7 @@ class CheckObjectPosition(object):
 			return self.kitchen_objects[product_name]
 
 
-	def check_object(self, product_name='', hover_position=True, timeout=10):
+	def check_object(self, product_name='', hover_position=True, timeout=5):
 		if rospy.is_shutdown(): 
 			return
 
@@ -194,13 +194,15 @@ class CheckObjectPosition(object):
 				break
 		if type(self.detected_object_data['obj_id']) == type(None):
 			rospy.logerr("Did not detect any product at position.".format(product=product_name))
-			return False
+			if hover_position == True:
+				self.update_product_positions()
 		elif self.detected_object_data['obj_id'] == product.product_id:
 			rospy.loginfo("Detctected {product} at position. Product ID {id}".format(product = product_name, id=product.product_id))
 			self.move_to_pose(product.get_hover_pose())
 			return product.get_pose()
 		elif self.detected_object_data['obj_id'] >= 0 and self.detected_object_data['obj_id'] <= (len(self.kitchen_objects)-1):
-			self.update_product_positions()
+			if hover_position == True:
+				self.update_product_positions()
 		return False
 
 	def check_object_with_camera(self):
@@ -271,8 +273,6 @@ def main():
 			# # idx = (idx+1) % len(camera_pose)
 			# # cop.check_object(camera_pose[idx],product, hover_position = False)
 			# pass
-
-
 
 if __name__ == '__main__':
 	main()
