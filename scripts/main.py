@@ -193,35 +193,77 @@ class PickAndPlace(object):
 		self._retract()
 
 
+def callback(data):
+	global val 
+	val = data.data
+
+# def main():
+# 	rospy.init_node("pick_and_place", anonymous = True)
+# 	limb = 'right'
+# 	hover_distance = 0.3 # meters
+# 	tip_name = 'right_hand'
+# 	product_name = ["ketchup","mayonaise","barbeque","salad"]
+# 	pnp = PickAndPlace(limb, hover_distance,tip_name)
+# 	cop = CheckObjectPosition(limb,hover_distance)
+
+# 	cop.move_to_home()
+# 	rospy.sleep(1.0)
+# 	while True:
+# 		if rospy.is_shutdown():
+# 			break
+# 		question = "What do you want to pick? "
+# 		chosen_position = int(raw_input(question))
+# 		if chosen_position <= len(product_name):
+# 			product_to_pick = product_name[chosen_position]
+# 		else:
+# 			break
+# 		product_pose = cop.check_object(product_to_pick)
+# 		if not product_pose:
+# 			product_pose = cop.check_object(product_to_pick,False)
+# 		print("Running. Ctrl-c to quit")
+# 		#pnp.move_to_neutral()
+# 		rospy.sleep(1.0)
+# 		print("\nPicking...")
+# 		pnp.pick(product_pose)
+# 		print("\nPlacing...")
+# 		pnp.place("drop1")
+def arduino_listner():
+	rospy.Subscriber("Arduino_value", String, callback)
+
 def main():
 	rospy.init_node("pick_and_place", anonymous = True)
 	limb = 'right'
 	hover_distance = 0.3 # meters
 	tip_name = 'right_hand'
-	product_name = ["ketchup","mayonaise","barbeque","salad"]
 	pnp = PickAndPlace(limb, hover_distance,tip_name)
-	cop = CheckObjectPosition(limb,hover_distance)	
+	cop = CheckObjectPosition(limb,hover_distance)
+	arduino_listner()
 	cop.move_to_home()
 	rospy.sleep(1.0)
 	while True:
 		if rospy.is_shutdown():
 			break
-		question = "What do you want to pick? "
-		chosen_position = int(raw_input(question))
-		if chosen_position <= len(product_name):
-			product_to_pick = product_name[chosen_position]
+		product_to_pick = val 
+		if product_to_pick == "None":
+			pass
 		else:
-			break
-		product_pose = cop.check_object(product_to_pick)
-		if not product_pose:
-			product_pose = cop.check_object(product_to_pick,False)
-		print("Running. Ctrl-c to quit")
-		#pnp.move_to_neutral()
-		rospy.sleep(1.0)
-		print("\nPicking...")
-		pnp.pick(product_pose)
-		print("\nPlacing...")
-		pnp.place("drop1")
+			product_pose = cop.check_object(product_to_pick)
+			if not product_pose:
+				product_pose = cop.check_object(product_to_pick,False)
+			if product_pose == False:
+				pass
+			else:
+				print("Running. Ctrl-c to quit")
+				#pnp.move_to_neutral()
+				rospy.sleep(1.0)
+				print("\nPicking...")
+				pnp.pick(product_pose)
+				print("\nPlacing...")
+				pnp.place("drop1")
+			
+
+
+val = None
 
 if __name__ == '__main__':
 	main()
