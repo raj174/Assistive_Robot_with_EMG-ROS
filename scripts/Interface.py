@@ -32,7 +32,7 @@ def listener():
 def talker():
 	pub = rospy.Publisher('Pickup_object', String, queue_size=10)
 	rospy.init_node('EMG_Interface', anonymous=True)
-	#rate = rospy.Rate(10) # 10hz
+	rate = rospy.Rate(10) # 10hz
 	head_display = intera_interface.HeadDisplay()
 	listener()
 	head_display.display_image(home_interface[0])
@@ -40,21 +40,48 @@ def talker():
 	global start_time
 	start_time = time.time()
 	while not rospy.is_shutdown():
+		global data_received
+		global val
+		pub.publish("None")
 		if time.time() - start_time >= timeout:
-			global val
 			val = None
-			print val
-		if val == "Next" or val == "next":
-			global data_received
+		if val.lower() == "next":
 			data_received = True
-			idx = (idx+1) % len(home_interface)
+			if idx >= len(home_interface)-1:
+				idx = 0
+			else:
+				idx = idx+1
 			head_display.display_image(home_interface[idx])
 			data_received = False
-		if val == "select" or val == "Select":
+		if val.lower() == "select":
 			data_received = True
-			head_display.display_image(selected_image[idx])
-
+			head_display.display_image(selected_image[idx][0])
 			data_received = False
+			if idx != 0:
+				loop = True
+			while loop:
+				idx1 = 0
+				if val.lower() == "next":
+					data_received = True
+					if idx1 >= len(selected_image[idx])-1:
+						idx1 = 0
+					else:
+						idx1 = idx1+1
+					head_display.display_image(selected_image[idx][idx1])
+					data_received = False
+				if val.lower() == "select":
+					data_received = True
+					if idx1 == 0:
+						for i in range(0,10):
+							pub.publish(product[idx])
+							rate.sleep()
+						data_received =False
+						loop = False
+					if idx1 == 1:
+						data_received =False
+						loop = False
+
+
 
 
 	# while not rospy.is_shutdown():
@@ -78,12 +105,13 @@ home_interface =[
 				]
 
 selected_image =[
-				image_source + "Untitled.jpg",
-				image_source + "Untitled-0.jpg",
-				image_source + "Untitled-1.jpg",
-				image_source + "Untitled-2.jpg",
-				image_source + "Untitled-3.jpg"
+				(image_source + "Untitled.jpg", image_source + "Untitled.jpg",)
+				(image_source + "Select-0.jpg", image_source + "Select-0_1.jpg")
+				(image_source + "Select-1.jpg", image_source + "Select-1_1.jpg")
+				(image_source + "Select-2.jpg", image_source + "Select-2_1.jpg")
+				(image_source + "Select-3.jpg", image_source + "Select-3_1.jpg")
 				]
+products = ["None","ketchup", "mayonaise", "barbecue", "salad"]
 
 if __name__ == '__main__':
 	try:

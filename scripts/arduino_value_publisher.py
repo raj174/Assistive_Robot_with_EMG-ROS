@@ -14,13 +14,14 @@ def talker():
 	rate = rospy.Rate(10) # 10hz
 	while not rospy.is_shutdown():
 		j = ser.readline().replace('\r\n','')
-		if j == 'Next':
+		j = j.lower()
+		if j == 'next':
 			rospy.loginfo(j)
 			pub.publish(j)
-		elif j =='Select':
+		elif j =='select':
 			rospy.loginfo(j)
 			pub.publish(j)
-		elif j =='Back':
+		elif j =='back':
 			rospy.loginfo(j)
 			pub.publish(j)
 		else:

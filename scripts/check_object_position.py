@@ -94,8 +94,6 @@ class CheckObjectPosition(object):
 		self.check_positions = [(0.450, -0.453),(0.450, -0.553),(0.362, -0.453),(0.362, -0.553)]
 
 
-
-		## TODO #1: RAJ: Look into the section below
 		self.detected_object_data = {
 			'frame': None,
 			'obj_id': None,

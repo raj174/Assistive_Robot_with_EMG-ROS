@@ -228,7 +228,7 @@ def callback(data):
 # 		print("\nPlacing...")
 # 		pnp.place("drop1")
 def arduino_listner():
-	rospy.Subscriber("Arduino_value", String, callback)
+	rospy.Subscriber("Pickup_object", String, callback)
 
 def main():
 	rospy.init_node("pick_and_place", anonymous = True)
