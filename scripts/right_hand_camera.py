@@ -24,6 +24,9 @@ import rospy
 import intera_interface
 from sensor_msgs.msg import Image
 
+markerLength = 0.35
+camera_matrix = np.asmatrix([[613.299988, 0.0, 354.949005],[0.0, 0.0, 612.106018],[214.380005, 0.0, 1.0]])
+dist_coeffs = np.asarray([-0.439, 0.263, 0.001, 0.0, -0.113])
 
 def show_image_callback(img_data):
     """The callback function to show image by using CvBridge and cv
@@ -36,7 +39,6 @@ def show_image_callback(img_data):
     except CvBridgeError, err:
         rospy.logerr(err)
         return
-
     light = intera_interface.Lights()
     #print (light.list_all_lights())
 
@@ -54,16 +56,25 @@ def show_image_callback(img_data):
     #lists of ids and the corners beloning to each id
     corners, ids, rejectedImgPoints = aruco.detectMarkers(cv_image, aruco_dict, parameters=parameters)
     print(ids)
+    #cv2.imwrite(filename = "chess.jpg", img = cv_image)
+    if ids != None: # if aruco marker detected
+        rvec, tvec, object_ = aruco.estimatePoseSingleMarkers(corners, markerLength, camera_matrix, dist_coeffs) # For a single marker
+        imgWithAruco = aruco.drawDetectedMarkers(cv_image, corners,ids, (0,255,0))
+        imgWithAruco = aruco.drawAxis(imgWithAruco, camera_matrix, dist_coeffs, rvec, tvec, 20)
+        cv2.imshow('frame2',imgWithAruco)
+        print rvec
+        print tvec
+    else:
+        pass
  
- 
-    cv_image = aruco.drawDetectedMarkers(cv_image, corners)
-    new_size = cv_image.shape
-    new_size = new_size[1]*3, new_size[0]*3
-    img = cv2.resize(cv_image, new_size)
+    #cv_image = aruco.drawDetectedMarkers(cv_image, corners)
+    #new_size = cv_image.shape
+    #new_size = new_size[1]*3, new_size[0]*3
+    #img = cv2.resize(cv_image, new_size)
     #print img.shape
     #print(rejectedImgPoints)
     # Display the resulting frame
-    cv2.imshow('frame', img)
+    #cv2.imshow('frame', img)
     cv2.waitKey(3)
 
 def main():
