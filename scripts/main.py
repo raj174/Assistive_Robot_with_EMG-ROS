@@ -6,6 +6,7 @@ import intera_interface
 import tf
 import struct
 import copy
+import time
 
 import cv2
 import cv2.aruco as aruco
@@ -59,10 +60,10 @@ class PickAndPlace(object):
 
 		self.drop_locations = {}
 
-		self.drop_locations['drop1']   	= DropLocation('drop1', 0.60, 0.0, 0.225)
-		self.drop_locations['drop2'] 	= DropLocation('drop2', 0.60, 0.0, 0.225)
-		self.drop_locations['drop3']  	= DropLocation('drop3', 0.60, 0.0, 0.225)
-		self.drop_locations['drop4']   	= DropLocation('drop4', 0.60, 0.0, 0.225)
+		self.drop_locations['drop1']   	= DropLocation('drop1', 0.60, 0.0, 0.225, self._hover_distance)
+		self.drop_locations['drop2'] 	= DropLocation('drop2', 0.60, 0.0, 0.225, self._hover_distance)
+		self.drop_locations['drop3']  	= DropLocation('drop3', 0.60, 0.0, 0.225, self._hover_distance)
+		self.drop_locations['drop4']   	= DropLocation('drop4', 0.60, 0.0, 0.225, self._hover_distance)
 
 
 		# verify robot is enabled
@@ -105,7 +106,7 @@ class PickAndPlace(object):
 
 	def get_overhead_orientation(self,pose):
 		current_pose = copy.deepcopy(pose)
-		current_pose.position.z = 0.245
+		#current_pose.position.z = 0.245
 		current_pose.orientation = self.overhead_orientation
 		return current_pose
 
@@ -115,7 +116,7 @@ class PickAndPlace(object):
 		joint_angles = self._limb.ik_request(approach, self._tip_name)
 		self._limb.set_joint_position_speed(0.3)
 		self._guarded_move_to_joint_position(joint_angles)
-		self._limb.set_joint_position_speed(0.1)
+		self._limb.set_joint_position_speed(0.2)
 
 	def _retract(self):
 		# retrieve current pose from endpoint
@@ -161,8 +162,8 @@ class PickAndPlace(object):
 			r.sleep()
 		rospy.sleep(1.0)
 
-	def pick(self, pose):
-		pose = self.get_overhead_orientation(pose)
+	def pick(self, pose_to_move):
+		pose = self.get_overhead_orientation(pose_to_move)
 		if rospy.is_shutdown():
 			return
 		# open the gripper
@@ -194,76 +195,99 @@ class PickAndPlace(object):
 
 
 def callback(data):
-	global val 
-	val = data.data
+	global val
+	global start_time
+	start_time = time.time()
+	#print start_time
+	if data_receive:
+		val = data.data
 
-def main():
-	rospy.init_node("pick_and_place", anonymous = True)
-	limb = 'right'
-	hover_distance = 0.3 # meters
-	tip_name = 'right_hand'
-	product_name = ["ketchup","mayonaise","barbeque","salad"]
-	pnp = PickAndPlace(limb, hover_distance,tip_name)
-	cop = CheckObjectPosition(limb,hover_distance)
 
-	cop.move_to_home()
-	rospy.sleep(1.0)
-	while True:
-		if rospy.is_shutdown():
-			break
-		question = "What do you want to pick? "
-		chosen_position = int(raw_input(question))
-		if chosen_position <= len(product_name):
-			product_to_pick = product_name[chosen_position]
-		else:
-			break
-		product_pose = cop.check_object(product_to_pick)
-		if not product_pose:
-			product_pose = cop.check_object(product_to_pick,False)
-		print("Running. Ctrl-c to quit")
-		#pnp.move_to_neutral()
-		rospy.sleep(1.0)
-		print("\nPicking...")
-		pnp.pick(product_pose)
-		print("\nPlacing...")
-		pnp.place("drop1")
-def arduino_listner():
-	rospy.Subscriber("Pickup_object", String, callback)
 
+# Code to check if the programme is running without having to listen to any topic
 # def main():
 # 	rospy.init_node("pick_and_place", anonymous = True)
 # 	limb = 'right'
 # 	hover_distance = 0.3 # meters
 # 	tip_name = 'right_hand'
+# 	product_name = ["ketchup","mayonaise","barbeque","salad"]
 # 	pnp = PickAndPlace(limb, hover_distance,tip_name)
 # 	cop = CheckObjectPosition(limb,hover_distance)
-# 	arduino_listner()
+
 # 	cop.move_to_home()
 # 	rospy.sleep(1.0)
 # 	while True:
 # 		if rospy.is_shutdown():
 # 			break
-# 		product_to_pick = val 
-# 		if product_to_pick == "None":
-# 			pass
+# 		question = "What do you want to pick? "
+# 		chosen_position = int(raw_input(question))
+# 		if chosen_position <= len(product_name):
+# 			product_to_pick = product_name[chosen_position]
 # 		else:
-# 			product_pose = cop.check_object(product_to_pick)
-# 			if not product_pose:
-# 				product_pose = cop.check_object(product_to_pick,False)
-# 			if product_pose == False:
-# 				pass
-# 			else:
-# 				print("Running. Ctrl-c to quit")
-# 				#pnp.move_to_neutral()
-# 				rospy.sleep(1.0)
-# 				print("\nPicking...")
-# 				pnp.pick(product_pose)
-# 				print("\nPlacing...")
-# 				pnp.place("drop1")
+# 			break
+# 		product_pose = cop.check_object(product_to_pick)
+# 		if not product_pose:
+# 			product_pose = cop.check_object(product_to_pick,False)
+# 		print("Running. Ctrl-c to quit")
+# 		#pnp.move_to_neutral()
+# 		rospy.sleep(1.0)
+# 		print("\nPicking...")
+# 		pnp.pick(product_pose)
+# 		print("\nPlacing...")
+# 		pnp.place("drop1")
+
+def pickup_listner():
+	rospy.Subscriber("Pickup_object", String, callback)
+
+def main():
+	global data_receive
+	rospy.init_node("pick_and_place", anonymous = True)
+	pub = rospy.Publisher('pick_and_place_state', String, queue_size=10)
+	limb = 'right'
+	hover_distance = 0.3 # meters
+	tip_name = 'right_hand'
+	pnp = PickAndPlace(limb, hover_distance,tip_name)
+	cop = CheckObjectPosition(limb,hover_distance)
+	pickup_listner()
+	pnp.move_to_home()
+	rospy.sleep(1.0)
+	drop = "drop1"
+	while not rospy.is_shutdown():
+		global val
+		if time.time() - start_time >= timeout:
+			val = "none"
+		product_to_pick = val 
+		if product_to_pick.lower() == "none":
+			pass
+		else:
+			data_receive = False
+			product_pose = cop.check_object(product_to_pick)
+			if not product_pose:
+				product_pose = cop.check_object(product_to_pick,False)
+			if product_pose == False:
+				pass
+			else:
+				print("Running. Ctrl-c to quit")
+				#pnp.move_to_neutral()
+				rospy.sleep(1.0)
+				pub.publish("picking")
+				rospy.loginfo("Picking...")
+				pnp.pick(product_pose)
+				pub.publish("placing")
+				rospy.loginfo("Placing...")
+				pnp.place(drop)
+				new_drop_position = cop.product_position(product_to_pick,pnp.drop_locations[drop].position)
+				pnp.drop_locations[drop].set_pose(new_drop_position.x,new_drop_position.y,new_drop_position.z) 
+				print pnp.drop_locations[drop].position
+				pnp.move_to_home()
+			data_receive = True
 			
 
-
-val = None
+val = "none"
+previous_val = None
+data_receive = True
+start_time = time.time()
+timeout = 1
 
 if __name__ == '__main__':
 	main()

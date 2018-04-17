@@ -28,9 +28,10 @@ from intera_core_msgs.srv import (
 )
 
 class KitchenObject(object):
-	def __init__(self, name='ketchup', product_id=0, x=0.3, y=0.3, z=0.7, hover_offset=0.4):
+	def __init__(self, name='ketchup', product_id=0, x=0.3, y=0.3, z=0.7, hover_offset=0.3):
 		self.name = name
 		self.orientation = Quaternion(x = 0.0, y = 1.0, z = 0.0, w = 0.0)
+		self.orientation_drop = Quaternion(x = 0.7, y = -0.7, z = 0.0, w = 0.0)
 		self.position = None
 		self.pose = None
 		self.product_id = product_id
@@ -40,13 +41,17 @@ class KitchenObject(object):
 
 		self.set_pose(x,y,z)
 
-	def set_pose(self, x, y, z):
+	def set_pose(self, x, y, z, orientation_get = True):
+		if orientation_get:
+			orientation = self.orientation
+		else:
+			orientation = self.orientation_drop
 		self.position = Point(x=x, y=y, z=z)
-		self.pose = Pose(position=self.position, orientation=self.orientation)
+		self.pose = Pose(position=self.position, orientation = orientation)
 
 		self.hover_position = copy.deepcopy(self.position)
 		self.hover_position.z = self.position.z + self.hover_offset
-		self.hover_pose = Pose(position=self.hover_position, orientation=self.orientation)
+		self.hover_pose = Pose(position=self.hover_position, orientation= orientation)
 
 	def get_pose(self):
 		return self.pose
@@ -68,7 +73,7 @@ class KitchenObject(object):
 
 
 class CheckObjectPosition(object):
-	def __init__(self, limb="right", hover_distance = 0.40, tip_name="right_hand_camera", camera_name = "right_hand_camera"):
+	def __init__(self, limb="right", hover_distance = 0.30, tip_name="right_hand_camera", camera_name = "right_hand_camera"):
 		self._limb_name = limb # string
 		self._tip_name = tip_name # string
 		self._hover_distance = hover_distance # in meters
@@ -86,12 +91,17 @@ class CheckObjectPosition(object):
 		## Create Kitchen Items
 		self.kitchen_objects = {}
 
-		self.kitchen_objects['ketchup']   = KitchenObject('ketchup'  , 0, 0.450, -0.453, 0.3)
-		self.kitchen_objects['mayonaise'] = KitchenObject('mayonaise', 1, 0.450, -0.553, 0.3)
-		self.kitchen_objects['barbeque']  = KitchenObject('barbeque' , 2, 0.362, -0.453, 0.3)
-		self.kitchen_objects['salad']     = KitchenObject('salad'    , 3, 0.362, -0.553, 0.3)
+		self.kitchen_objects['ketchup']   = KitchenObject('ketchup'  , 0, 0.450, -0.453, 0.245)
+		self.kitchen_objects['mayonaise'] = KitchenObject('mayonaise', 1, 0.450, -0.553, 0.245)
+		self.kitchen_objects['barbecue']  = KitchenObject('barbecue' , 2, 0.362, -0.453, 0.245)
+		self.kitchen_objects['salad']     = KitchenObject('salad'    , 3, 0.362, -0.553, 0.245)
 
-		self.check_positions = [(0.450, -0.453),(0.450, -0.553),(0.362, -0.453),(0.362, -0.553)]
+		self.check_positions =  [
+								(0.450, -0.453),
+								(0.450, -0.553),
+								(0.362, -0.453),
+								(0.362, -0.553),
+								]
 
 
 		self.detected_object_data = {
@@ -124,6 +134,7 @@ class CheckObjectPosition(object):
 
 	def move_to_pose(self, pose):
 		joint_angles = self._limb.ik_request(pose, self._tip_name)
+		#print pose
 		self._limb.set_joint_position_speed(0.2)
 		self._guarded_move_to_joint_position(joint_angles)
 
@@ -139,17 +150,26 @@ class CheckObjectPosition(object):
 	def update_product_positions(self):
 		current_id = None
 		for i in range(0,len(self.kitchen_objects)):
-			move_pose = Pose(position= Point(x = self.check_positions[i][0], y= self.check_positions[i][1], z = 0.3), orientation=self._camera_orientation)
+			move_pose = Pose(position= Point(x = self.check_positions[i][0], y= self.check_positions[i][1], z = 0.245), orientation=self._camera_orientation)
 			self.move_to_pose(move_pose)
 			rospy.sleep(2.0)
 			currrent_id = self.detected_object_data['obj_id']
 			#print self.detected_object_data['obj_id']
 			for j in self.kitchen_objects:
 				if self.kitchen_objects[j].product_id == currrent_id:
-					self.kitchen_objects[j].set_pose(self.check_positions[i][0],self.check_positions[i][1],0.3)
+					self.kitchen_objects[j].set_pose(self.check_positions[i][0],self.check_positions[i][1],0.245)
 					current_id = None
 				elif current_id == type(None):
 					rospy.loginfo("Nothing found at position x: {x} y: {y}".format(x = self.check_positions[i][0],y = self.check_positions[i][1]))
+
+	def product_position(self,product_name, position):
+		pick_position = copy.deepcopy(position)
+		drop_position = Point(x=self.kitchen_objects[product_name].position.x, y=self.kitchen_objects[product_name].position.y, z=self.kitchen_objects[product_name].position.z)
+		if pick_position.y  == 0:  #for now ok as it is a known
+			self.kitchen_objects[product_name].set_pose(pick_position.x,pick_position.y,pick_position.z,False)
+		else:
+			self.kitchen_objects[product_name].set_pose(pick_position.x,pick_position.y,pick_position.z)
+		return drop_position
 
 	def get_product_pose(self, product_name=''):
 		if not product_name in self.kitchen_objects.keys():
@@ -167,12 +187,12 @@ class CheckObjectPosition(object):
 	def check_object(self, product_name='', hover_position=True, timeout=5):
 		if rospy.is_shutdown(): 
 			return
-
 		product = self.get_product(product_name)
 		if not product:
 			rospy.logerr("Could not find object with name {name}.".format(name=product_name))
 			return None
 		if hover_position == True:
+			#print product.get_hover_pose()
 			self.move_to_pose(product.get_hover_pose())
 		
 		self.move_to_pose(product.get_pose())

@@ -56,7 +56,7 @@ def ik_service_client(limb = "right", use_advanced_options = False):
     # second position [0.45,-0.55,0.30]
     # third position [0.362,-0.45,0.30]
     # fourth position [0.362,-0.55,0.30] 
-    movement = [0.45,-0.453,0.30] 
+    movement = [0.60, 0.0, 0.225,] 
     [dx,dy,dz] = movement
     dy = constrain(dy,-0.7596394482267009,0.7596394482267009)
     dz = constrain(dz, 0.1, 1)
@@ -73,8 +73,8 @@ def ik_service_client(limb = "right", use_advanced_options = False):
                     z= dz,
                 ),
                 orientation=Quaternion(
-                    x= 0.0,
-                    y= 1,
+                    x= 0.7,
+                    y= -0.7,
                     z= 0.0,
                     w= 0.0,
                 ),
