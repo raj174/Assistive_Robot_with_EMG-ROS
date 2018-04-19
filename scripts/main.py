@@ -278,7 +278,7 @@ def main():
 				pnp.place(drop)
 				new_drop_position = cop.product_position(product_to_pick,pnp.drop_locations[drop].position)
 				pnp.drop_locations[drop].set_pose(new_drop_position.x,new_drop_position.y,new_drop_position.z) 
-				print pnp.drop_locations[drop].position
+				#print pnp.drop_locations[drop].position
 				pnp.move_to_home()
 			data_receive = True
 			
