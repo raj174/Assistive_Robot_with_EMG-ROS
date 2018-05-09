@@ -27,8 +27,14 @@ from intera_core_msgs.srv import (
 	SolvePositionIKRequest,
 )
 
+from intera_motion_interface import (
+    MotionTrajectory,
+    MotionWaypoint,
+    MotionWaypointOptions
+)
+
 class KitchenObject(object):
-	def __init__(self, name='ketchup', product_id=0, x=0.3, y=0.3, z=0.7, hover_offset=0.3):
+	def __init__(self, name='mustard', product_id=0, x=0.3, y=0.3, z=0.7, hover_offset=0.3):
 		self.name = name
 		self.orientation = Quaternion(x = 0.0, y = 1.0, z = 0.0, w = 0.0)
 		self.orientation_drop = Quaternion(x = 0.7, y = -0.7, z = 0.0, w = 0.0)
@@ -42,16 +48,23 @@ class KitchenObject(object):
 		self.set_pose(x,y,z)
 
 	def set_pose(self, x, y, z, orientation_get = True):
-		if orientation_get:
-			orientation = self.orientation
-		else:
-			orientation = self.orientation_drop
-		self.position = Point(x=x, y=y, z=z)
-		self.pose = Pose(position=self.position, orientation = orientation)
+		if orientation_get == False:
+			#orientation = self.orientation
+			self.position = Point(x=x, y=y, z=z)
+			self.pose = Pose(position=self.position, orientation = self.orientation_drop)
 
-		self.hover_position = copy.deepcopy(self.position)
-		self.hover_position.z = self.position.z + self.hover_offset
-		self.hover_pose = Pose(position=self.hover_position, orientation= orientation)
+			self.hover_position = copy.deepcopy(self.position)
+			self.hover_position.z = self.position.z + self.hover_offset
+			self.hover_pose = Pose(position=self.hover_position, orientation= self.orientation_drop)
+
+		else:
+			#orientation = self.orientation_drop
+			self.position = Point(x=x, y=y, z=z)
+			self.pose = Pose(position=self.position, orientation = self.orientation)
+
+			self.hover_position = copy.deepcopy(self.position)
+			self.hover_position.z = self.position.z + self.hover_offset
+			self.hover_pose = Pose(position=self.hover_position, orientation= self.orientation)
 
 	def get_pose(self):
 		return self.pose
@@ -66,6 +79,7 @@ class KitchenObject(object):
 		return self.name
 
 	def get_hover_pose(self):
+		print self.hover_pose
 		return self.hover_pose
 
 	def printf(self):
@@ -73,7 +87,7 @@ class KitchenObject(object):
 
 
 class CheckObjectPosition(object):
-	def __init__(self, limb="right", hover_distance = 0.30, tip_name="right_hand_camera", camera_name = "right_hand_camera"):
+	def __init__(self, limb="right", hover_distance = 0.250, tip_name="right_hand_camera", camera_name = "right_hand_camera"):
 		self._limb_name = limb # string
 		self._tip_name = tip_name # string
 		self._hover_distance = hover_distance # in meters
@@ -133,10 +147,11 @@ class CheckObjectPosition(object):
 		self.gripper_open()
 
 	def move_to_pose(self, pose):
-		joint_angles = self._limb.ik_request(pose, self._tip_name)
+		set_joint_angles = self._limb.ik_request(pose, self._tip_name)
 		#print pose
 		self._limb.set_joint_position_speed(0.2)
-		self._guarded_move_to_joint_position(joint_angles)
+		self._guarded_move_to_joint_position(set_joint_angles)
+
 
 	def _guarded_move_to_joint_position(self, joint_angles, timeout=5.0):
 		if rospy.is_shutdown():
@@ -165,7 +180,7 @@ class CheckObjectPosition(object):
 	def product_position(self,product_name, position):
 		pick_position = copy.deepcopy(position)
 		drop_position = Point(x=self.kitchen_objects[product_name].position.x, y=self.kitchen_objects[product_name].position.y, z=self.kitchen_objects[product_name].position.z)
-		if pick_position.y  == 0:  #for now ok as it is a known
+		if pick_position.y  == 0.0:  #for now ok as it is a known position
 			self.kitchen_objects[product_name].set_pose(pick_position.x,pick_position.y,pick_position.z,False)
 		else:
 			self.kitchen_objects[product_name].set_pose(pick_position.x,pick_position.y,pick_position.z)
@@ -250,8 +265,6 @@ class CheckObjectPosition(object):
 	    #lists of ids and the corners beloning to each id
 	    corners, ids, rejectedImgPoints = aruco.detectMarkers(cv_image, aruco_dict, parameters=parameters)
 	    # print(ids)
-	    ## TODO #2: RAJ look into the section below
-	    ## updating detected object data
 	    
 	    self.detected_object_data['frame'] = None
 	    self.detected_object_data['obj_pose'] = None
@@ -261,31 +274,31 @@ class CheckObjectPosition(object):
 	    else:
 	    	self.detected_object_data['obj_id'] = ids[0][0]
 
-def main():
-	rospy.init_node("Check_object_position", anonymous = True)
-	limb = 'right'
-	hover_distance = 0.3 # meters
-	tip_name = 'right_hand_camera'
-	product_name = ["ketchup","mayonaise","barbeque","salad"]
-	cop = check_object_position(limb,hover_distance)	
-	cop.move_to_home()
-	rospy.sleep(1.0)
-	#pnp.move_to_start(starting_joint_angles)
-	#idx = 0
-	while True:
-		if rospy.is_shutdown():
-			break
-		question = "What do you want to pick? "
-		chosen_position = int(raw_input(question))
-		if chosen_position <= len(product_name):
-			product_to_pick = product_name[chosen_position]
-		else:
-			break
-		product_pose = cop.check_object(product_to_pick)
-		if not product_pose:
-			product_pose_repeat = cop.check_object(product_to_pick,False)
-			if not product_pose_repeat:
-				pass
+# def main():
+# 	rospy.init_node("Check_object_position", anonymous = True)
+# 	limb = 'right'
+# 	hover_distance = 0.3 # meters
+# 	tip_name = 'right_hand_camera'
+# 	product_name = ["ketchup","mayonaise","barbeque","salad"]
+# 	cop = check_object_position(limb,hover_distance)	
+# 	cop.move_to_home()
+# 	rospy.sleep(1.0)
+# 	#pnp.move_to_start(starting_joint_angles)
+# 	#idx = 0
+# 	while True:
+# 		if rospy.is_shutdown():
+# 			break
+# 		question = "What do you want to pick? "
+# 		chosen_position = int(raw_input(question))
+# 		if chosen_position <= len(product_name):
+# 			product_to_pick = product_name[chosen_position]
+# 		else:
+# 			break
+# 		product_pose = cop.check_object(product_to_pick)
+# 		if not product_pose:
+# 			product_pose_repeat = cop.check_object(product_to_pick,False)
+# 			if not product_pose_repeat:
+# 				pass
 			
 			# if not cop.check_object(product[1]): #choose wanted position
 			# # idx = (idx+1) % len(camera_pose)

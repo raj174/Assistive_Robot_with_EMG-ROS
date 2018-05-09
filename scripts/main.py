@@ -8,6 +8,14 @@ import struct
 import copy
 import time
 
+from intera_motion_interface import (
+    MotionTrajectory,
+    MotionWaypoint,
+    MotionWaypointOptions
+)
+from intera_motion_msgs.msg import TrajectoryOptions
+import PyKDL
+from tf_conversions import posemath
 import cv2
 import cv2.aruco as aruco
 from cv_bridge import CvBridge, CvBridgeError
@@ -29,7 +37,7 @@ from intera_core_msgs.srv import (
 )
 
 class DropLocation(object):
-	def __init__(self, name='drop1', x=0.3, y=0.3, z=0.7, hover_offset=0.4):
+	def __init__(self, name='drop1', x=0.3, y=0.3, z=0.7, hover_offset=0.3):
 		self.name = name
 		self.orientation = Quaternion(x=-0.00142460053167,y=0.999994209902,	z=-0.00177030764765,w=0.00253311793936)
 		self.position = None
@@ -60,10 +68,10 @@ class PickAndPlace(object):
 
 		self.drop_locations = {}
 
-		self.drop_locations['drop1']   	= DropLocation('drop1', 0.60, 0.0, 0.225, self._hover_distance)
-		self.drop_locations['drop2'] 	= DropLocation('drop2', 0.60, 0.0, 0.225, self._hover_distance)
-		self.drop_locations['drop3']  	= DropLocation('drop3', 0.60, 0.0, 0.225, self._hover_distance)
-		self.drop_locations['drop4']   	= DropLocation('drop4', 0.60, 0.0, 0.225, self._hover_distance)
+		self.drop_locations['ketchup']   	= DropLocation('drop1', 0.60, 0.0, 0.23, self._hover_distance)
+		self.drop_locations['mayonaise'] 	= DropLocation('drop1', 0.60, 0.0, 0.23, self._hover_distance)
+		self.drop_locations['barbecue']  	= DropLocation('drop1', 0.60, 0.0, 0.23, self._hover_distance)
+		self.drop_locations['salad']   		= DropLocation('drop1', 0.60, 0.0, 0.23, self._hover_distance)
 
 
 		# verify robot is enabled
@@ -82,12 +90,16 @@ class PickAndPlace(object):
 		self.gripper_open()
 
 	def move_to_home(self):
-		self._limb.set_joint_position_speed(0.2)
-		home_position = {'right_j6': 0.0, 'right_j5': 0.0, 'right_j4': 0.0, 'right_j3': 0.0, 'right_j2': 0.0, 'right_j1': -1.6, 'right_j0': 0.0}
-		self._guarded_move_to_joint_position(home_position)
 		self.gripper_open()
+		self._limb.set_joint_position_speed(0.2)
+		home_position = {'right_j6': 0.0, 'right_j5': 0.0, 'right_j4': 0.0, 'right_j3': 0.1, 'right_j2': 0.0, 'right_j1': -1.6, 'right_j0': -0.0}
+		f = lambda x : int(x[-1])
+		set_home_position = [home_position[i] for i in sorted(home_position.keys(), key=f)]
+		self._guarded_move_to_joint_position_two(set_home_position)
+		#self._guarded_move_to_joint_position(home_position)
+		
 
-	def _guarded_move_to_joint_position(self, joint_angles, timeout=5.0):
+	def _guarded_move_to_joint_position(self, joint_angles, timeout=10.0):
 		if rospy.is_shutdown():
 			return
 		if joint_angles:
@@ -95,6 +107,37 @@ class PickAndPlace(object):
 			#print (self._limb.endpoint_pose())
 		else:
 			rospy.logerr("No Joint Angles provided for move_to_joint_positions. Staying put.")
+
+	def _guarded_move_to_joint_position_two(self, set_joint_angles, speed_ratio = 0.4, accel_ratio = 0.2, timeout = 10.0):
+		try:
+			traj = MotionTrajectory(limb = self._limb)
+			wpt_opts = MotionWaypointOptions(max_joint_speed_ratio=speed_ratio,
+			                                 max_joint_accel=accel_ratio)
+			waypoint = MotionWaypoint(options = wpt_opts.to_msg(), limb = self._limb)
+
+			joint_angles = self._limb.joint_ordered_angles()
+
+			waypoint.set_joint_angles(joint_angles = joint_angles)
+			traj.append_waypoint(waypoint.to_msg())
+			if len(set_joint_angles) != len(joint_angles):
+			 	rospy.logerr('The number of joint_angles must be %d', len(joint_angles))
+			 	return None
+
+			waypoint.set_joint_angles(joint_angles = set_joint_angles)
+			traj.append_waypoint(waypoint.to_msg())
+
+			result = traj.send_trajectory(timeout= timeout)
+			if result is None:
+				rospy.logerr('Trajectory FAILED to send')
+				return
+
+			if result.result:
+				rospy.loginfo('Motion controller successfully finished the trajectory!')
+			else:
+				rospy.logerr('Motion controller failed to complete the trajectory with error %s',
+				result.errorId)
+		except rospy.ROSInterruptException:
+			rospy.logerr('Keyboard interrupt detected from the user. Exiting before trajectory completion.')
 
 	def gripper_open(self):
 		self._gripper.open()
@@ -106,34 +149,40 @@ class PickAndPlace(object):
 
 	def get_overhead_orientation(self,pose):
 		current_pose = copy.deepcopy(pose)
-		#current_pose.position.z = 0.245
 		current_pose.orientation = self.overhead_orientation
 		return current_pose
 
-	def _approach(self, pose):
+	def _approach(self, pose, speed = 0.3, timeout = 5.0, speed_ratio = 0.5, accel_ratio = 0.5):
 		approach = copy.deepcopy(pose)
 		approach.position.z = approach.position.z + self._hover_distance
-		joint_angles = self._limb.ik_request(approach, self._tip_name)
-		self._limb.set_joint_position_speed(0.3)
-		self._guarded_move_to_joint_position(joint_angles)
-		self._limb.set_joint_position_speed(0.2)
+		set_joint_angles = self._limb.ik_request(approach, self._tip_name)
 
-	def _retract(self):
+		f = lambda x : int(x[-1])
+		set_joint_angles = [set_joint_angles[i] for i in sorted(set_joint_angles.keys(), key=f)]
+
+		#print set_joint_angles
+		self._limb.set_joint_position_speed(speed)
+		#rospy.sleep(1.0)
+		self._guarded_move_to_joint_position_two(set_joint_angles)
+		#self._guarded_move_to_joint_position(set_joint_angles)
+		#self._limb.set_joint_position_speed(0.2)
+
+	def _retract(self, distance = 0):
 		# retrieve current pose from endpoint
 		current_pose = self._limb.endpoint_pose()
 		ik_pose = Pose()
 		ik_pose.position.x = current_pose['position'].x
 		ik_pose.position.y = current_pose['position'].y
-		ik_pose.position.z = current_pose['position'].z + self._hover_distance
+		ik_pose.position.z = current_pose['position'].z + self._hover_distance - distance
 		ik_pose.orientation.x = current_pose['orientation'].x
 		ik_pose.orientation.y = current_pose['orientation'].y
 		ik_pose.orientation.z = current_pose['orientation'].z
 		ik_pose.orientation.w = current_pose['orientation'].w
-		self._servo_to_pose(ik_pose)
+		self.linear_movement(ik_pose)
 
 	def _servo_to_pose(self, pose, time=4.0, steps=500.0):
 		''' An *incredibly simple* linearly-interpolated Cartesian move '''
-		r = rospy.Rate(1/(time/steps)) # Defaults to 100Hz command rate
+		r = rospy.Rate(1/(time/steps)) 
 		current_pose = self._limb.endpoint_pose()
 		ik_delta = Pose()
 		ik_delta.position.x = (current_pose['position'].x - pose.position.x) / steps
@@ -162,6 +211,39 @@ class PickAndPlace(object):
 			r.sleep()
 		rospy.sleep(1.0)
 
+	def linear_movement(self,position, linear_speed = 0.2, linear_accel = 0.2, rotational_speed = 0.1, rotational_accel = 0.1):
+	   	try:
+			traj_options = TrajectoryOptions()
+			traj_options.interpolation_type = TrajectoryOptions.CARTESIAN
+			traj = MotionTrajectory(trajectory_options = traj_options, limb = self._limb)
+
+			wpt_opts = MotionWaypointOptions(max_linear_speed=linear_speed,
+			                                 max_linear_accel=linear_accel,
+			                                 max_rotational_speed=rotational_speed,
+			                                 max_rotational_accel=rotational_accel,
+			                                 max_joint_speed_ratio=0.2)
+			waypoint = MotionWaypoint(options = wpt_opts.to_msg(), limb = self._limb)
+			poseStamped = PoseStamped()
+			poseStamped.pose = position
+			waypoint.set_cartesian_pose(poseStamped, self._tip_name)
+
+			rospy.loginfo('Sending waypoint: \n%s', waypoint.to_string())
+
+			traj.append_waypoint(waypoint.to_msg())
+
+			result = traj.send_trajectory(timeout=5.0)
+			if result is None:
+			    rospy.logerr('Trajectory FAILED to send')
+			    return
+
+			if result.result:
+			    rospy.loginfo('Motion controller successfully finished the trajectory!')
+			else:
+			    rospy.logerr('Motion controller failed to complete the trajectory with error %s',
+			                 result.errorId)
+		except rospy.ROSInterruptException:
+			rospy.logerr('Keyboard interrupt detected from the user. Exiting before trajectory completion.')
+
 	def pick(self, pose_to_move):
 		pose = self.get_overhead_orientation(pose_to_move)
 		if rospy.is_shutdown():
@@ -171,7 +253,7 @@ class PickAndPlace(object):
 		# servo above pose
 		self._approach(pose)
 		# servo to pose
-		self._servo_to_pose(pose)
+		self.linear_movement(pose)
 		if rospy.is_shutdown():
 			return
 		# close gripper
@@ -183,15 +265,15 @@ class PickAndPlace(object):
 		if rospy.is_shutdown():
 			return
 		# servo above pose
-		self._approach(self.drop_locations[drop_location].pose)
+		self._approach(self.drop_locations[drop_location].pose, speed = 0.001)
 		# servo to pose
-		self._servo_to_pose(self.drop_locations[drop_location].pose)
+		self.linear_movement(self.drop_locations[drop_location].pose)
 		if rospy.is_shutdown():
 			return
 		# open the gripper
 		self.gripper_open()
 		# retract to clear object
-		self._retract()
+		self._retract(0.10)
 
 
 def callback(data):
@@ -204,7 +286,7 @@ def callback(data):
 
 
 
-# Code to check if the programme is running without having to listen to any topic
+#Code to check if the programme is running without having to listen to any topic
 # def main():
 # 	rospy.init_node("pick_and_place", anonymous = True)
 # 	limb = 'right'
@@ -213,7 +295,7 @@ def callback(data):
 # 	product_name = ["ketchup","mayonaise","barbeque","salad"]
 # 	pnp = PickAndPlace(limb, hover_distance,tip_name)
 # 	cop = CheckObjectPosition(limb,hover_distance)
-
+# 	product_pose = 
 # 	cop.move_to_home()
 # 	rospy.sleep(1.0)
 # 	while True:
@@ -251,7 +333,6 @@ def main():
 	pickup_listner()
 	pnp.move_to_home()
 	rospy.sleep(1.0)
-	drop = "drop1"
 	while not rospy.is_shutdown():
 		global val
 		if time.time() - start_time >= timeout:
@@ -265,20 +346,18 @@ def main():
 			if not product_pose:
 				product_pose = cop.check_object(product_to_pick,False)
 			if product_pose == False:
-				pass
+				pnp.move_to_home()
 			else:
 				print("Running. Ctrl-c to quit")
-				#pnp.move_to_neutral()
 				rospy.sleep(1.0)
 				pub.publish("picking")
 				rospy.loginfo("Picking...")
 				pnp.pick(product_pose)
 				pub.publish("placing")
 				rospy.loginfo("Placing...")
-				pnp.place(drop)
-				new_drop_position = cop.product_position(product_to_pick,pnp.drop_locations[drop].position)
-				pnp.drop_locations[drop].set_pose(new_drop_position.x,new_drop_position.y,new_drop_position.z) 
-				#print pnp.drop_locations[drop].position
+				pnp.place(product_to_pick)
+				new_drop_position = cop.product_position(product_to_pick,pnp.drop_locations[product_to_pick].position)
+				pnp.drop_locations[product_to_pick].set_pose(new_drop_position.x,new_drop_position.y,new_drop_position.z) 
 				pnp.move_to_home()
 			data_receive = True
 			

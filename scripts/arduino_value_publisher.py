@@ -38,11 +38,29 @@ except:
 def talker():
 	pub = rospy.Publisher('Arduino_value', String, queue_size=10)
 	rospy.init_node('ArduinoSerial', anonymous=True)
-	rate = rospy.Rate(1) # 10hz
 	global char 
 	char = "None"
 	_thread.start_new_thread(keypress, ())
 
+	# while not rospy.is_shutdown():
+	# 	j = ser.readline().replace('\r\n','')
+	# 	j = j.lower()
+	# 	if j == 'next':
+	# 		rospy.loginfo(j)
+	# 		pub.publish(j)
+	# 		j = "None"
+	# 	elif j =='select':
+	# 		rospy.loginfo(j)
+	# 		pub.publish(j)
+	# 		j = "None"
+		
+	# 	elif j =='back':
+	# 		rospy.loginfo(j)
+	# 		pub.publish(j)
+	# 		j = "None"
+	# 	else:
+	# 		rospy.loginfo("None")
+	# 		pub.publish("None")
 	while not rospy.is_shutdown():
 		try:
 			j = ser.readline().replace('\r\n','')
@@ -85,7 +103,7 @@ def talker():
 				#rospy.loginfo("None")
 				#pub.publish("None")
 				pass
-		rospy.sleep(1)
+		rospy.sleep(2)
 
 if __name__ == '__main__':
 	try:

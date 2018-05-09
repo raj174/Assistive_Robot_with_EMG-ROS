@@ -11,7 +11,6 @@ from std_msgs.msg import String
 def callback(data):
 	global val
 	global start_time
-	#global previous_val
 	start_time = time.time()
 	#print start_time
 	if not data_received:
@@ -32,6 +31,7 @@ def talker():
 	listener()
 	head_display.display_image(home_interface[0])
 	idx = 0
+	loop = False
 	global start_time
 	start_time = time.time()
 	while not rospy.is_shutdown():
@@ -41,49 +41,46 @@ def talker():
 		if time.time() - start_time >= timeout:
 			val = None
 		if val is not None:
-			if val.lower() == "next":
-				data_received = True
-				if idx >= len(home_interface)-1:
-					idx = 1
-				else:
-					idx = idx+1
-				head_display.display_image(home_interface[idx])
-				data_received = False
-			if val.lower() == "select":
-				idx1 = 0
-				data_received = True
-				head_display.display_image(selected_image[idx][idx1])
-				data_received = False
-				if idx != 0:
-					loop = True
-				else: 
-					rospy.loginfo("Nothing selected")
-					loop = False
-				while loop:
-					if time.time() - start_time >= timeout:
-						val = None
-					if val is not None:
-						if val.lower() == "next":
-							data_received = True
-							if idx1 >= len(selected_image[idx])-1:
-								idx1 = 0
-							else:
-								idx1 = idx1+1
-							head_display.display_image(selected_image[idx][idx1])
-							data_received = False
-						if val.lower() == "select":
-							data_received = True
-							if idx1 == 0:
-								#for i in range(0,10):
+			if loop == False:
+				if val.lower() == "next":
+					#data_received = True
+					if idx >= len(home_interface)-1:
+						idx = 1
+					else:
+						idx = idx+1
+					head_display.display_image(home_interface[idx])
+					#data_received = False
+				if val.lower() == "select":
+					idx1 = 0
+					#data_received = True
+					head_display.display_image(selected_image[idx][idx1])
+					#data_received = False
+					if idx != 0:
+						loop = True
+					else: 
+						rospy.loginfo("Nothing selected")
+						loop = False
+			else:
+				#if time.time() - start_time >= timeout:
+				#	val = None
+				if val is not None:
+					if val.lower() == "next":
+						if idx1 >= len(selected_image[idx])-1:
+							idx1 = 0
+						else:
+							idx1 = idx1+1
+						head_display.display_image(selected_image[idx][idx1])
+					if val.lower() == "select":
+						if idx1 == 0:
+							for i in range(0,10):
 								pub.publish(products[idx])
-								#rate.sleep()
-								head_display.display_image(home_interface[idx])
-								data_received =False
-								loop = False
-							if idx1 == 1:
-								data_received =False
-								head_display.display_image(home_interface[idx])
-								loop = False
+							#rate.sleep()
+							head_display.display_image(home_interface[idx])
+							loop = False
+						if idx1 == 1:
+							data_received =False
+							head_display.display_image(home_interface[idx])
+							loop = False
 
 
 
@@ -94,7 +91,6 @@ def talker():
 	# 	rate.sleep()
 
 val = None
-previous_val = None
 data_received = False
 start_time = time.time()
 timeout = 1
