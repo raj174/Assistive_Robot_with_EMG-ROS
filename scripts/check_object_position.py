@@ -105,13 +105,13 @@ class CheckObjectPosition(object):
 		## Create Kitchen Items
 		self.kitchen_objects = {}
 
-		self.kitchen_objects['ketchup']   = KitchenObject('ketchup'  , 0, 0.450, -0.453, 0.245)
+		self.kitchen_objects['ketchup']   = KitchenObject('ketchup'  , 0, 0.450, -0.455, 0.245)
 		self.kitchen_objects['mayonaise'] = KitchenObject('mayonaise', 1, 0.450, -0.553, 0.245)
 		self.kitchen_objects['barbecue']  = KitchenObject('barbecue' , 2, 0.362, -0.453, 0.245)
 		self.kitchen_objects['salad']     = KitchenObject('salad'    , 3, 0.362, -0.553, 0.245)
 
 		self.check_positions =  [
-								(0.450, -0.453),
+								(0.450, -0.455),
 								(0.450, -0.553),
 								(0.362, -0.453),
 								(0.362, -0.553),
@@ -153,7 +153,7 @@ class CheckObjectPosition(object):
 		self._guarded_move_to_joint_position(set_joint_angles)
 
 
-	def _guarded_move_to_joint_position(self, joint_angles, timeout=5.0):
+	def _guarded_move_to_joint_position(self, joint_angles, timeout=10.0):
 		if rospy.is_shutdown():
 			return
 		if joint_angles:

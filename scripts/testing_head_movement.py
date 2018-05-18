@@ -59,7 +59,7 @@ class Wobbler(object):
         """
         Sets the head back into a neutral pose
         """
-        self._head.set_pan(0.0)
+        self._head.set_pan(0.3)
 
     def run(self):
         self.set_neutral()

@@ -67,14 +67,14 @@ def ik_service_client(limb = "right", tip_name = "right_gripper_tip"):
     # Add desired pose for inverse kinematics
     current_pose = limb_mv.endpoint_pose()
     #print current_pose 
-    movement = [0.45,-0.453,0.61]
+    movement = [0.460, -0.563,0.35]
     orientation = [0.0,1,0.0,0.0]
     #gripper.close()
     rospy.sleep(1.0)
     [dx,dy,dz] = movement
     [ox,oy,oz,ow] = orientation
     dy = constrain(dy,-0.7596394482267009,0.7596394482267009)
-    dz = constrain(dz, 0.1, 1)
+    dz = constrain(dz, 0.02, 1)
 
 
     # up position [0.45,-0.453,0.6] 0.11 for pick up location
@@ -158,7 +158,7 @@ def main():
     """
     rospy.init_node("rsdk_ik_service_client")
 
-    if approach():
+    if ik_service_client():
         rospy.loginfo("Simple IK call passed!")
     else:
         rospy.logerr("Simple IK call FAILED")
